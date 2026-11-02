@@ -9,6 +9,29 @@ permissions:
 on: 
   workflow_dispatch:
     inputs:
+      # Enhance fork: build our mpv fork at a given ref, with the toolchain and
+      # dependency sources pinned to the 2026-06-29 the-database build
+      # (release 2026-06-29-f29685fe1f), so builds differ from it only in mpv.
+      mpv_repo:
+        description: "GitHub owner/repo of the mpv source"
+        required: false
+        default: "baldodev/mpv"
+        type: string
+      mpv_ref:
+        description: "mpv ref (branch/tag/sha) to build"
+        required: false
+        default: "enhance/base-f29685fe1"
+        type: string
+      pin_deps:
+        description: "Pin toolchain + dependency sources to the 2026-06-29 build (enhance/pins-2026-06-29.tsv)"
+        required: false
+        default: true
+        type: boolean
+      arch_snapshot:
+        description: "Arch Linux Archive date (YYYY/MM/DD) for the container's host packages; empty = live mirrors"
+        required: false
+        default: "2026/06/29"
+        type: string
       build_target:
         description: "Build target"
         required: false
@@ -46,7 +69,7 @@ on:
       release:
         description: "Publish a release"
         required: false
-        default: true
+        default: false
         type: boolean
       command:
         description: 'input command you want to run before build'
@@ -71,10 +94,11 @@ jobs:
         uses: actions/github-script@v9
         with:
           script: |
+            const [mpv_owner, mpv_repo] = `${{ inputs.mpv_repo || 'baldodev/mpv' }}`.split('/');
             const commit = await github.rest.repos.getCommit({
-              owner: 'the-database',
-              repo: 'mpv',
-              ref: `master`
+              owner: mpv_owner,
+              repo: mpv_repo,
+              ref: `${{ inputs.mpv_ref || 'enhance/base-f29685fe1' }}`
             })
             core.setOutput('sha', String(commit.data.sha))
             
@@ -184,9 +208,17 @@ jobs:
           sudo echo -e "[multilib]\nInclude = /etc/pacman.d/mirrorlist" | sudo tee -a /etc/pacman.conf >/dev/null
           sudo pacman-key --init
           sudo pacman-key --populate archlinux
-          sudo pacman -Syu --noconfirm
+          if [ -n "${{ inputs.arch_snapshot }}" ]; then
+            # Enhance: host tools as of the reference build's day (Arch Linux Archive);
+            # -uu also downgrades the newer image to that snapshot.
+            echo 'Server = https://archive.archlinux.org/repos/${{ inputs.arch_snapshot }}/$repo/os/$arch' | sudo tee /etc/pacman.d/mirrorlist
+            sudo pacman -Syyuu --noconfirm
+          else
+            sudo pacman -Syu --noconfirm
+          fi
           sudo pacman -S --noconfirm --needed git ninja cmake meson clang lld libc++ unzip ragel yasm nasm gperf rst2pdf lib32-gcc-libs lib32-glib2 python-cairo curl wget mimalloc ccache python-pip 7zip shaderc
           sudo python -m pip install --break-system-packages roman
+          pacman -Q | tee /tmp/host-packages.txt | grep -E '^(clang|cmake|meson|nasm|yasm|python|shaderc|glibc|gcc) '
           git config --global user.name "github-actions[bot]"
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git config --global pull.rebase true
@@ -199,6 +231,8 @@ jobs:
           repository: shinchiro/mpv-winbuild-cmake
           path: mpv-winbuild-cmake
           fetch-depth: 0
+          # Enhance: the commit the 2026-06-29 reference build used (HEAD from 06-28 to 08-04).
+          ref: ${{ inputs.pin_deps && '04283f7e911149809c46bc236a834cf7134ba133' || '' }}
       - name: Prepare
         run: |
           echo "sha=${{ needs.params.outputs.sha }}" >> $GITHUB_ENV
@@ -391,10 +425,16 @@ jobs:
           if [ "${{ matrix.lgpl }}" = "true" ]; then
             git am --3way ../compile-lgpl-libmpv.patch
           fi
-          # Use the-database/mpv as the mpv source (carries the seek-speedup
-          # patch). Must run AFTER zhongfly's patch series (they also touch
-          # mpv.cmake) and BEFORE the build, so commit as a normal change.
-          sed -i 's|mpv-player/mpv\.git|the-database/mpv.git|g' packages/mpv.cmake
+          # Enhance: build inputs.mpv_repo at the sha params resolved from inputs.mpv_ref.
+          # Must run AFTER zhongfly's patch series (they also touch mpv.cmake) and
+          # BEFORE the build, so commit as a normal change. A cached mpv checkout
+          # would ignore GIT_TAG (mpv.cmake sets UPDATE_COMMAND ""), so drop it.
+          mpv_url="https://github.com/${{ inputs.mpv_repo || 'baldodev/mpv' }}.git"
+          sed -i "s|https://github.com/mpv-player/mpv\.git|${mpv_url}|g" packages/mpv.cmake
+          sed -i "s|\(GIT_REPOSITORY ${mpv_url}\)|\1\n    GIT_TAG ${{ needs.params.outputs.sha }}|" packages/mpv.cmake
+          grep -F "GIT_TAG ${{ needs.params.outputs.sha }}" packages/mpv.cmake
+          rm -rf src_packages/mpv 2>/dev/null || true
+          find build${{ matrix.bit }} -maxdepth 3 -type d -name 'mpv-prefix' -exec rm -rf {} + 2>/dev/null || true
           git add packages/mpv.cmake && \
             git -c user.name=ci -c user.email=ci@local commit -m "redirect mpv source"
           # Use the-database/libass (carries the multithreaded rendering + deferred-blur
@@ -404,17 +444,56 @@ jobs:
           sed -i 's|-Dlibunibreak=enabled|-Dlibunibreak=enabled\n        -Dthreads=enabled|' packages/libass.cmake
           git add packages/libass.cmake && \
             git -c user.name=ci -c user.email=ci@local commit -m "redirect libass source"
+          if [ "${{ inputs.pin_deps }}" = "true" ]; then
+            # Enhance: pin every git source to the 2026-06-29 reference build.
+            python3 -I ../enhance/apply_pins.py ../enhance/pins-2026-06-29.tsv .
+            git add -A packages toolchain && \
+              git -c user.name=ci -c user.email=ci@local commit -m "enhance: pin sources to 2026-06-29"
+          fi
           bash ../build.sh -t '${{ matrix.bit }}' -c '${{ inputs.compiler }}' -s "${{ matrix.lgpl == true && 'true' || 'false' }}"
+      - name: Print failing package logs
+        if: ${{ failure() }}
+        shell: bash
+        run: |
+          # Enhance (from upstream main): surface ExternalProject errors in the job log.
+          for f in $(find mpv-winbuild-cmake/build${{ matrix.bit }} -type f \( -name '*-build-*.log' -o -name '*-install-*.log' -o -name '*-configure-*.log' \) -size +0 \
+                     -exec grep -lE '^FAILED|error:|Error [0-9]+' {} + 2>/dev/null); do
+            echo "::group::$f"
+            grep -nE -B3 -A20 '^FAILED|error:|Error [0-9]+' "$f" | head -200
+            echo "::endgroup::"
+          done || true
+      - name: Record source commits
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          # Enhance: the commit every package and toolchain source was built from.
+          # src_head = checkout after patches; stamp HEAD files hold the pre-patch commit.
+          for d in mpv-winbuild-cmake/src_packages/*/; do
+            [ -e "$d/.git" ] && printf 'src_head\t%s\t%s\n' "$(basename "$d")" "$(git -C "$d" rev-parse HEAD 2>/dev/null)"
+          done > source-commits.tsv || true
+          find mpv-winbuild-cmake/build${{ matrix.bit }} -path '*-stamp/HEAD' -type f 2>/dev/null | while read -r f; do
+            printf 'stamp_head\t%s\t%s\n' "$(basename "$(dirname "$f")" -stamp)" "$(cat "$f")"
+          done >> source-commits.tsv || true
+          cp /tmp/host-packages.txt host-packages.txt 2>/dev/null || true
+          cat source-commits.tsv
       - name: Collect logs
         if: ${{ always() }}
         run: |
-          sudo 7z a logs.7z $(find mpv-winbuild-cmake/build${{ matrix.bit }} -type f -iname "*-*.log" -or -wholename "*/ffbuild/config.log")
+          sudo 7z a logs.7z $(find mpv-winbuild-cmake/build${{ matrix.bit }} -type f -iname "*-*.log" -or -wholename "*/ffbuild/config.log") source-commits.tsv host-packages.txt
       - name: upload logs
         uses: actions/upload-artifact@v7
         if: ${{ always() }}
         with:
           name: ${{ matrix.bit }}${{ matrix.lgpl == true && '-lgpl' || '' }}_logs
           path: logs.7z
+      - name: upload source commits
+        uses: actions/upload-artifact@v7
+        if: ${{ always() }}
+        with:
+          name: ${{ matrix.bit }}${{ matrix.lgpl == true && '-lgpl' || '' }}_sources
+          path: |
+            source-commits.tsv
+            host-packages.txt
 
       - name: "Get artifacts' name and path"
         id: get_files
