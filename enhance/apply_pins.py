@@ -68,6 +68,11 @@ def main() -> int:
                 block = re.sub(r"^(\s*GIT_TAG\s+)\S+", rf"\g<1>{value}", block, count=1, flags=re.M)
             else:
                 block = block[:repo.end()] + f"\n{indent}GIT_TAG {value}" + block[repo.end():]
+            # A sha checkout is a detached HEAD. With GIT_REMOTE_NAME set, force_rebuild_git()/cleanup()
+            # generate reset_head.sh with `git reset --hard @{u}`, which fails on a detached HEAD (exit 128,
+            # "HEAD does not point to a branch") in the post-install cleanup step. Without it the script
+            # resets to HEAD, as for upstream's sha-pinned mpv.
+            block = re.sub(r"^[ \t]*GIT_REMOTE_NAME[ \t]+\S+[ \t]*\n", "", block, flags=re.M)
         else:
             print(f"ERROR {name}: unknown mode {mode}")
             errors += 1
