@@ -15,7 +15,7 @@ on:
       mpv_repo:
         description: "GitHub owner/repo of the mpv source"
         required: false
-        default: "baldodev/mpv"
+        default: "baldoOsu/mpv"
         type: string
       mpv_ref:
         description: "mpv ref (branch/tag/sha) to build"
@@ -94,7 +94,7 @@ jobs:
         uses: actions/github-script@v9
         with:
           script: |
-            const [mpv_owner, mpv_repo] = `${{ inputs.mpv_repo || 'baldodev/mpv' }}`.split('/');
+            const [mpv_owner, mpv_repo] = `${{ inputs.mpv_repo || 'baldoOsu/mpv' }}`.split('/');
             const commit = await github.rest.repos.getCommit({
               owner: mpv_owner,
               repo: mpv_repo,
@@ -429,7 +429,7 @@ jobs:
           # Must run AFTER zhongfly's patch series (they also touch mpv.cmake) and
           # BEFORE the build, so commit as a normal change. A cached mpv checkout
           # would ignore GIT_TAG (mpv.cmake sets UPDATE_COMMAND ""), so drop it.
-          mpv_url="https://github.com/${{ inputs.mpv_repo || 'baldodev/mpv' }}.git"
+          mpv_url="https://github.com/${{ inputs.mpv_repo || 'baldoOsu/mpv' }}.git"
           sed -i "s|https://github.com/mpv-player/mpv\.git|${mpv_url}|g" packages/mpv.cmake
           sed -i "s|\(GIT_REPOSITORY ${mpv_url}\)|\1\n    GIT_TAG ${{ needs.params.outputs.sha }}|" packages/mpv.cmake
           grep -F "GIT_TAG ${{ needs.params.outputs.sha }}" packages/mpv.cmake
