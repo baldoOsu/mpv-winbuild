@@ -43,7 +43,7 @@ libmfx	reset	f6aac4576826ed821c81231fdfb0d24047158e7d	master @ 2026-06-29T02:12:
 libmodplug	reset	d1b97ed0020bc620a059d3675d1854b40bd2608d	master @ 2026-06-29T02:12:00Z
 libmysofa	reset	3b7427c295d063724601f175ca05f81e29e3cc1a	main @ 2026-06-29T02:12:00Z
 libplacebo	reset	50a75711f0b8aa9431ef64a91a9d71fd8a5ddf1c	master @ 2026-06-29T02:12:00Z; matches DLL v7.360.0-90-g50a7571
-libpng	reset	d1d0abeffede1cc898ddc3d0e600839cf026d749	libpng18 @ 2026-06-29T02:12:00Z
+libpng	reset	cae474558968f015124d7369556a4b1016276e3a	override: pinned DLL string 1.6.59.git: the June default branch was libpng16 (now libpng18); libpng16 tip at T
 libpsl	reset	98d5261796ea878c0eaae1acbfbf2b417b60d630	master @ 2026-06-29T02:12:00Z
 libsamplerate	reset	2ccde9568cca73c7b32c97fefca2e418c16ae5e3	master @ 2026-06-29T02:12:00Z
 libsdl2	reset	b8b3f5ef2001cbe7c11f62d41a9bf47d4a2d8b07	SDL2 @ 2026-06-29T02:12:00Z; matches DLL release-2.32.0-218-gb8b3f5ef
