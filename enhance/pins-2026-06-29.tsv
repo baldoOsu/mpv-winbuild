@@ -4,6 +4,7 @@
 #   2026-06-29T02:12Z (first-parent, committer date), when that run's 'ninja update' fetched.
 # mode tag: GIT_TAG <sha>, applied at clone (toolchain + packages 'ninja update' skips). Tip at 2026-06-11T19:50Z:
 #   the toolchain/source caches that run restored were created by run 27372897774 (2026-06-11).
+# mode url: '<old> <new>' URL pin inside the package block (moving build-time download).
 # mode rust: rustup default toolchain (pinned DLL embeds rustc 485ec3fbc = nightly-2026-06-11).
 # name	mode	value	note
 amf-headers	reset	6ec029531e356102aafe1e236cfd0ddf739939da	master @ 2026-06-29T02:12:00Z
@@ -89,4 +90,5 @@ x265	reset	b81f650e21e8aacbe6a9ad04ce14aefc05b932c0	master @ 2026-06-29T02:12:00
 xxhash	reset	e573d4d2aaeaba0f3e5a0a9a54144a1f2b4b56e7	dev @ 2026-06-29T02:12:00Z
 zlib	reset	f4b08115a14ca65b33286c7c0524ad2a3bf74881	develop @ 2026-06-29T02:12:00Z
 zstd	reset	5233c58e6ca0b1c4c6b353ad79649191ed195bdc	dev @ 2026-06-29T02:12:00Z
+cppwinrt	url	https://github.com/microsoft/windows-rs/raw/master/crates/libs/bindgen/default/Windows.winmd https://github.com/microsoft/windows-rs/raw/6518cd6725f9862447b7eea82f5118801f72e043/crates/libs/bindgen/default/Windows.winmd	windows-rs master at 2026-06-11T19:50Z; the master path 404s since windows-rs #4779 (2026-08-04). Blob b85df3a3, 7425024 B, unchanged 2026-02-19..08-04
 rustup	rust	nightly-2026-06-11	pinned DLL embeds /rustc/485ec3fbcc12fa14ef6596dabb125ad710499c9e (nightly-2026-06-11)

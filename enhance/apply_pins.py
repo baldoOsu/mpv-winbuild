@@ -9,6 +9,8 @@ Rows: name<TAB>mode<TAB>value<TAB>note
   tag    set `GIT_TAG <sha>`; ExternalProject checks it out at clone time (toolchain, and
          packages `ninja update` skips).
   rust   rustup default toolchain, e.g. nightly-2026-06-11.
+  url    "<old> <new>": replace the URL <old> with <new> inside the package's ExternalProject_Add
+         (for recipes that download a file from a moving branch, e.g. cppwinrt's Windows.winmd).
 Exits non-zero if any row can't be applied, so a missing package never builds unpinned.
 """
 import re
@@ -57,6 +59,16 @@ def main() -> int:
             errors += 1
             continue
         indent = repo.group(1)
+        if mode == "url":
+            old_url, new_url = value.split()
+            if block.count(old_url) != 1:
+                print(f"ERROR {name}: URL {old_url} found {block.count(old_url)} times in {f}, expected 1")
+                errors += 1
+                continue
+            block = block.replace(old_url, new_url)
+            f.write_text(text[:start] + block + text[end:])
+            print(f"url       {name} -> {new_url} ({f.relative_to(root)})")
+            continue
         if mode == "reset":
             if re.search(r"^\s*GIT_RESET\s", block, re.M):
                 print(f"ERROR {name}: already has GIT_RESET; drop it from the pins file")
